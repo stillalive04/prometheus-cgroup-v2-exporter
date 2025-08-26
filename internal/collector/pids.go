@@ -16,10 +16,10 @@ type PIDsCollector struct {
 	metrics *CollectorMetrics
 
 	// PIDs metrics
-	processesCount   *prometheus.GaugeVec
-	processesRunning *prometheus.GaugeVec
+	processesCount    *prometheus.GaugeVec
+	processesRunning  *prometheus.GaugeVec
 	processesSleeping *prometheus.GaugeVec
-	processesZombie  *prometheus.GaugeVec
+	processesZombie   *prometheus.GaugeVec
 }
 
 // NewPIDsCollector creates a new PIDs collector
@@ -47,7 +47,7 @@ func (c *PIDsCollector) initMetrics() {
 		},
 		[]string{"cgroup"},
 	)
-	
+
 	c.processesRunning = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: "cgroup",
@@ -57,7 +57,7 @@ func (c *PIDsCollector) initMetrics() {
 		},
 		[]string{"cgroup"},
 	)
-	
+
 	c.processesSleeping = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: "cgroup",
@@ -67,7 +67,7 @@ func (c *PIDsCollector) initMetrics() {
 		},
 		[]string{"cgroup"},
 	)
-	
+
 	c.processesZombie = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: "cgroup",
@@ -84,12 +84,12 @@ func (c *PIDsCollector) Describe(ch chan<- *prometheus.Desc) {
 	if !c.Enabled() {
 		return
 	}
-	
+
 	c.processesCount.Describe(ch)
 	c.processesRunning.Describe(ch)
 	c.processesSleeping.Describe(ch)
 	c.processesZombie.Describe(ch)
-	
+
 	c.metrics.Describe(ch)
 }
 
@@ -98,13 +98,13 @@ func (c *PIDsCollector) Collect(ch chan<- prometheus.Metric) {
 	if !c.Enabled() {
 		return
 	}
-	
+
 	start := time.Now()
 	defer func() {
 		c.metrics.ScrapeDuration.Observe(time.Since(start).Seconds())
 		c.metrics.LastScrapeTime.SetToCurrentTime()
 	}()
-	
+
 	// Scan cgroups
 	cgroups, err := c.scanner.Scan(context.Background())
 	if err != nil {
@@ -112,20 +112,20 @@ func (c *PIDsCollector) Collect(ch chan<- prometheus.Metric) {
 		c.metrics.ScrapeErrors.Inc()
 		return
 	}
-	
+
 	c.metrics.CgroupsScraped.Set(float64(len(cgroups)))
-	
+
 	// Collect metrics from each cgroup
 	for _, cgroup := range cgroups {
 		c.collectCgroupMetrics(cgroup)
 	}
-	
+
 	// Collect all metrics
 	c.processesCount.Collect(ch)
 	c.processesRunning.Collect(ch)
 	c.processesSleeping.Collect(ch)
 	c.processesZombie.Collect(ch)
-	
+
 	c.metrics.Collect(ch)
 }
 
@@ -133,7 +133,7 @@ func (c *PIDsCollector) collectCgroupMetrics(cgroup interface{}) {
 	// This is a stub implementation
 	// In a real implementation, this would read from cgroup v2 files
 	// like cgroup.procs, pids.current, etc.
-	
+
 	// For now, just set some dummy metrics to make the code compile
 	c.processesCount.WithLabelValues("example").Set(0)
 	c.processesRunning.WithLabelValues("example").Set(0)

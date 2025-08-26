@@ -20,11 +20,11 @@ type Scanner struct {
 
 // CgroupInfo represents information about a cgroup
 type CgroupInfo struct {
-	Path         string
-	Name         string
-	Controllers  []string
-	Processes    []int
-	LastScanned  time.Time
+	Path        string
+	Name        string
+	Controllers []string
+	Processes   []int
+	LastScanned time.Time
 }
 
 // NewScanner creates a new cgroup scanner
@@ -74,7 +74,7 @@ func (s *Scanner) Scan(ctx context.Context) ([]*CgroupInfo, error) {
 			Controllers: controllers,
 			LastScanned: time.Now(),
 		}
-		
+
 		cgroups = append(cgroups, cgroupInfo)
 		return nil
 	})

@@ -50,7 +50,7 @@ func (c *MemoryCollector) initMetrics() {
 		},
 		[]string{"cgroup"},
 	)
-	
+
 	c.memoryLimitBytes = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: "cgroup",
@@ -60,7 +60,7 @@ func (c *MemoryCollector) initMetrics() {
 		},
 		[]string{"cgroup"},
 	)
-	
+
 	c.memoryCacheBytes = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: "cgroup",
@@ -70,7 +70,7 @@ func (c *MemoryCollector) initMetrics() {
 		},
 		[]string{"cgroup"},
 	)
-	
+
 	c.memoryRSSBytes = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: "cgroup",
@@ -80,7 +80,7 @@ func (c *MemoryCollector) initMetrics() {
 		},
 		[]string{"cgroup"},
 	)
-	
+
 	if c.config.Collectors.Memory.IncludeSwap {
 		c.memorySwapUsageBytes = prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
@@ -92,7 +92,7 @@ func (c *MemoryCollector) initMetrics() {
 			[]string{"cgroup"},
 		)
 	}
-	
+
 	c.memoryOOMEvents = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: "cgroup",
@@ -102,7 +102,7 @@ func (c *MemoryCollector) initMetrics() {
 		},
 		[]string{"cgroup"},
 	)
-	
+
 	if c.config.Collectors.Memory.IncludePressure {
 		c.memoryPressureTotal = prometheus.NewCounterVec(
 			prometheus.CounterOpts{
@@ -121,21 +121,21 @@ func (c *MemoryCollector) Describe(ch chan<- *prometheus.Desc) {
 	if !c.Enabled() {
 		return
 	}
-	
+
 	c.memoryUsageBytes.Describe(ch)
 	c.memoryLimitBytes.Describe(ch)
 	c.memoryCacheBytes.Describe(ch)
 	c.memoryRSSBytes.Describe(ch)
 	c.memoryOOMEvents.Describe(ch)
-	
+
 	if c.memorySwapUsageBytes != nil {
 		c.memorySwapUsageBytes.Describe(ch)
 	}
-	
+
 	if c.memoryPressureTotal != nil {
 		c.memoryPressureTotal.Describe(ch)
 	}
-	
+
 	c.metrics.Describe(ch)
 }
 
@@ -144,13 +144,13 @@ func (c *MemoryCollector) Collect(ch chan<- prometheus.Metric) {
 	if !c.Enabled() {
 		return
 	}
-	
+
 	start := time.Now()
 	defer func() {
 		c.metrics.ScrapeDuration.Observe(time.Since(start).Seconds())
 		c.metrics.LastScrapeTime.SetToCurrentTime()
 	}()
-	
+
 	// Scan cgroups
 	cgroups, err := c.scanner.Scan(context.Background())
 	if err != nil {
@@ -158,29 +158,29 @@ func (c *MemoryCollector) Collect(ch chan<- prometheus.Metric) {
 		c.metrics.ScrapeErrors.Inc()
 		return
 	}
-	
+
 	c.metrics.CgroupsScraped.Set(float64(len(cgroups)))
-	
+
 	// Collect metrics from each cgroup
 	for _, cgroup := range cgroups {
 		c.collectCgroupMetrics(cgroup)
 	}
-	
+
 	// Collect all metrics
 	c.memoryUsageBytes.Collect(ch)
 	c.memoryLimitBytes.Collect(ch)
 	c.memoryCacheBytes.Collect(ch)
 	c.memoryRSSBytes.Collect(ch)
 	c.memoryOOMEvents.Collect(ch)
-	
+
 	if c.memorySwapUsageBytes != nil {
 		c.memorySwapUsageBytes.Collect(ch)
 	}
-	
+
 	if c.memoryPressureTotal != nil {
 		c.memoryPressureTotal.Collect(ch)
 	}
-	
+
 	c.metrics.Collect(ch)
 }
 
@@ -188,7 +188,7 @@ func (c *MemoryCollector) collectCgroupMetrics(cgroup interface{}) {
 	// This is a stub implementation
 	// In a real implementation, this would read from cgroup v2 files
 	// like memory.current, memory.max, memory.stat, etc.
-	
+
 	// For now, just set some dummy metrics to make the code compile
 	c.memoryUsageBytes.WithLabelValues("example").Set(0)
 	c.memoryLimitBytes.WithLabelValues("example").Set(0)

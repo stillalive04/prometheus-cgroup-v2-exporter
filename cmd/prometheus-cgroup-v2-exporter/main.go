@@ -21,9 +21,9 @@ import (
 )
 
 var (
-	cfg        *config.Config
-	log        = logrus.New()
-	rootCmd    = &cobra.Command{
+	cfg     *config.Config
+	log     = logrus.New()
+	rootCmd = &cobra.Command{
 		Use:   "prometheus-cgroup-v2-exporter",
 		Short: "Prometheus exporter for cgroup v2 metrics",
 		Long: `A high-performance Prometheus exporter for cgroup v2 metrics,

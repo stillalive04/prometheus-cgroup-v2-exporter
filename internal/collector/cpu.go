@@ -49,7 +49,7 @@ func (c *CPUCollector) initMetrics() {
 		},
 		[]string{"cgroup", "mode"},
 	)
-	
+
 	c.cpuUserTotal = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: "cgroup",
@@ -59,7 +59,7 @@ func (c *CPUCollector) initMetrics() {
 		},
 		[]string{"cgroup"},
 	)
-	
+
 	c.cpuSystemTotal = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: "cgroup",
@@ -69,7 +69,7 @@ func (c *CPUCollector) initMetrics() {
 		},
 		[]string{"cgroup"},
 	)
-	
+
 	c.cpuThrottledTotal = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: "cgroup",
@@ -79,7 +79,7 @@ func (c *CPUCollector) initMetrics() {
 		},
 		[]string{"cgroup"},
 	)
-	
+
 	c.cpuPeriodsTotal = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: "cgroup",
@@ -89,7 +89,7 @@ func (c *CPUCollector) initMetrics() {
 		},
 		[]string{"cgroup"},
 	)
-	
+
 	if c.config.Collectors.CPU.IncludePressure {
 		c.cpuPressureTotal = prometheus.NewCounterVec(
 			prometheus.CounterOpts{
@@ -108,17 +108,17 @@ func (c *CPUCollector) Describe(ch chan<- *prometheus.Desc) {
 	if !c.Enabled() {
 		return
 	}
-	
+
 	c.cpuUsageTotal.Describe(ch)
 	c.cpuUserTotal.Describe(ch)
 	c.cpuSystemTotal.Describe(ch)
 	c.cpuThrottledTotal.Describe(ch)
 	c.cpuPeriodsTotal.Describe(ch)
-	
+
 	if c.cpuPressureTotal != nil {
 		c.cpuPressureTotal.Describe(ch)
 	}
-	
+
 	c.metrics.Describe(ch)
 }
 
@@ -127,13 +127,13 @@ func (c *CPUCollector) Collect(ch chan<- prometheus.Metric) {
 	if !c.Enabled() {
 		return
 	}
-	
+
 	start := time.Now()
 	defer func() {
 		c.metrics.ScrapeDuration.Observe(time.Since(start).Seconds())
 		c.metrics.LastScrapeTime.SetToCurrentTime()
 	}()
-	
+
 	// Scan cgroups
 	cgroups, err := c.scanner.Scan(context.Background())
 	if err != nil {
@@ -141,25 +141,25 @@ func (c *CPUCollector) Collect(ch chan<- prometheus.Metric) {
 		c.metrics.ScrapeErrors.Inc()
 		return
 	}
-	
+
 	c.metrics.CgroupsScraped.Set(float64(len(cgroups)))
-	
+
 	// Collect metrics from each cgroup
 	for _, cgroup := range cgroups {
 		c.collectCgroupMetrics(cgroup)
 	}
-	
+
 	// Collect all metrics
 	c.cpuUsageTotal.Collect(ch)
 	c.cpuUserTotal.Collect(ch)
 	c.cpuSystemTotal.Collect(ch)
 	c.cpuThrottledTotal.Collect(ch)
 	c.cpuPeriodsTotal.Collect(ch)
-	
+
 	if c.cpuPressureTotal != nil {
 		c.cpuPressureTotal.Collect(ch)
 	}
-	
+
 	c.metrics.Collect(ch)
 }
 
@@ -167,7 +167,7 @@ func (c *CPUCollector) collectCgroupMetrics(cgroup interface{}) {
 	// This is a stub implementation
 	// In a real implementation, this would read from cgroup v2 files
 	// like cpu.stat, cpu.pressure, etc.
-	
+
 	// For now, just set some dummy metrics to make the code compile
 	c.cpuUsageTotal.WithLabelValues("example", "user").Add(0)
 	c.cpuUserTotal.WithLabelValues("example").Add(0)

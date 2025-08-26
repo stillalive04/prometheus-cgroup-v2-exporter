@@ -1,7 +1,6 @@
 package collector
 
 import (
-	"context"
 	"fmt"
 	"sync"
 	"time"
@@ -9,8 +8,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 
-	"github.com/stillalive04/prometheus-cgroup-v2-exporter/internal/cgroup"
 	"github.com/stillalive04/prometheus-cgroup-v2-exporter/internal/config"
+	"github.com/stillalive04/prometheus-cgroup-v2-exporter/internal/cgroup"
 )
 
 // Collector interface defines the contract for all collectors
@@ -30,9 +29,9 @@ type BaseCollector struct {
 	mutex   sync.RWMutex
 
 	// Metrics cache
-	cache     map[string]interface{}
-	cacheTime time.Time
-	cacheTTL  time.Duration
+	cache      map[string]interface{}
+	cacheTime  time.Time
+	cacheTTL   time.Duration
 }
 
 // NewBaseCollector creates a new base collector
@@ -40,13 +39,13 @@ func NewBaseCollector(name string, enabled bool, cfg *config.Config, logger *log
 	scanner := cgroup.NewScanner(cfg.Cgroup.Path, logger)
 
 	return &BaseCollector{
-		name:     name,
-		enabled:  enabled,
-		config:   cfg,
-		logger:   logger,
-		scanner:  scanner,
-		cache:    make(map[string]interface{}),
-		cacheTTL: cfg.Advanced.CacheDuration,
+		name:      name,
+		enabled:   enabled,
+		config:    cfg,
+		logger:    logger,
+		scanner:   scanner,
+		cache:     make(map[string]interface{}),
+		cacheTTL:  cfg.Advanced.CacheDuration,
 	}
 }
 

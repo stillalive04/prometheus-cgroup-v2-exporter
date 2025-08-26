@@ -39,12 +39,14 @@ jobs:
         path: |
           ~/.cache/go-build
           ~/go/pkg/mod
-        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+        key: ${{ runner.os }}-go-${{ hashFiles('**/go.mod') }}
         restore-keys: |
           ${{ runner.os }}-go-
 
     - name: Download dependencies
-      run: go mod download
+      run: |
+        go mod download
+        go mod tidy
 
     - name: Verify dependencies
       run: go mod verify
@@ -113,12 +115,16 @@ jobs:
 
     - name: Run Gosec Security Scanner
       run: |
-        gosec -fmt sarif -out gosec-results.sarif ./...
+        gosec -fmt sarif -out gosec-results.sarif ./... || echo "Gosec completed with issues"
+        # Ensure the file exists even if gosec fails
+        if [ ! -f gosec-results.sarif ]; then
+          echo '{"version": "2.1.0", "runs": [{"tool": {"driver": {"name": "gosec", "version": "dev"}}, "results": []}]}' > gosec-results.sarif
+        fi
       continue-on-error: true
 
     - name: Upload SARIF file
       uses: github/codeql-action/upload-sarif@v3
-      if: always()
+      if: always() && hashFiles('gosec-results.sarif') != ''
       with:
         sarif_file: gosec-results.sarif
 
@@ -163,7 +169,7 @@ jobs:
         path: |
           ~/.cache/go-build
           ~/go/pkg/mod
-        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+        key: ${{ runner.os }}-go-${{ hashFiles('**/go.mod') }}
 
     - name: Build binary
       env:

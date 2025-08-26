@@ -1,0 +1,200 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: prometheus-cgroup-v2-exporter
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: prometheus-cgroup-v2-exporter
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/component: exporter
+    app.kubernetes.io/part-of: prometheus
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: prometheus-cgroup-v2-exporter
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: prometheus-cgroup-v2-exporter
+        app.kubernetes.io/version: "1.0.0"
+        app.kubernetes.io/component: exporter
+        app.kubernetes.io/part-of: prometheus
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9753"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: prometheus-cgroup-v2-exporter
+      hostPID: true
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      
+      tolerations:
+      - operator: Exists
+        effect: NoSchedule
+      - operator: Exists
+        effect: NoExecute
+      
+      nodeSelector:
+        kubernetes.io/os: linux
+      
+      containers:
+      - name: prometheus-cgroup-v2-exporter
+        image: stillalive04/prometheus-cgroup-v2-exporter:latest
+        imagePullPolicy: IfNotPresent
+        
+        ports:
+        - name: metrics
+          containerPort: 9753
+          hostPort: 9753
+          protocol: TCP
+        
+        args:
+        - --web.listen-address=0.0.0.0:9753
+        - --web.telemetry-path=/metrics
+        - --cgroup.path=/sys/fs/cgroup
+        - --log.level=info
+        - --log.format=json
+        
+        env:
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        
+        securityContext:
+          privileged: true
+          runAsUser: 0
+          readOnlyRootFilesystem: true
+        
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "50m"
+          limits:
+            memory: "128Mi"
+            cpu: "200m"
+        
+        volumeMounts:
+        - name: cgroup
+          mountPath: /sys/fs/cgroup
+          readOnly: true
+        - name: proc
+          mountPath: /host/proc
+          readOnly: true
+        - name: tmp
+          mountPath: /tmp
+        
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: metrics
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
+        
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: metrics
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+      
+      volumes:
+      - name: cgroup
+        hostPath:
+          path: /sys/fs/cgroup
+          type: Directory
+      - name: proc
+        hostPath:
+          path: /proc
+          type: Directory
+      - name: tmp
+        emptyDir: {}
+      
+      terminationGracePeriodSeconds: 30
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: prometheus-cgroup-v2-exporter
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: prometheus-cgroup-v2-exporter
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: prometheus-cgroup-v2-exporter
+  labels:
+    app.kubernetes.io/name: prometheus-cgroup-v2-exporter
+rules:
+- apiGroups: [""]
+  resources: ["nodes", "nodes/metrics"]
+  verbs: ["get", "list"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: prometheus-cgroup-v2-exporter
+  labels:
+    app.kubernetes.io/name: prometheus-cgroup-v2-exporter
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: prometheus-cgroup-v2-exporter
+subjects:
+- kind: ServiceAccount
+  name: prometheus-cgroup-v2-exporter
+  namespace: monitoring
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus-cgroup-v2-exporter
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: prometheus-cgroup-v2-exporter
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9753"
+spec:
+  type: ClusterIP
+  clusterIP: None
+  ports:
+  - name: metrics
+    port: 9753
+    targetPort: metrics
+    protocol: TCP
+  selector:
+    app.kubernetes.io/name: prometheus-cgroup-v2-exporter
+
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: prometheus-cgroup-v2-exporter
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: prometheus-cgroup-v2-exporter
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: prometheus-cgroup-v2-exporter
+  endpoints:
+  - port: metrics
+    interval: 30s
+    path: /metrics
+    honorLabels: true
+    relabelings:
+    - sourceLabels: [__meta_kubernetes_pod_node_name]
+      targetLabel: instance
+    - sourceLabels: [__meta_kubernetes_pod_node_name]
+      targetLabel: node

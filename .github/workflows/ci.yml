@@ -1,0 +1,335 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ "main", "develop" ]
+    tags: [ "v*" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+  packages: write
+  security-events: write
+
+env:
+  GO_VERSION: "1.21"
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: ${{ env.GO_VERSION }}
+
+    - name: Cache Go modules
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cache/go-build
+          ~/go/pkg/mod
+        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-
+
+    - name: Download dependencies
+      run: go mod download
+
+    - name: Verify dependencies
+      run: go mod verify
+
+    - name: Format check
+      run: |
+        if [ "$(gofmt -s -l . | wc -l)" -gt 0 ]; then
+          echo "Code is not formatted:"
+          gofmt -s -l .
+          exit 1
+        fi
+
+    - name: Vet
+      run: go vet ./...
+
+    - name: Install golangci-lint
+      run: |
+        curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.54.2
+
+    - name: Lint
+      run: golangci-lint run ./...
+
+    - name: Run tests
+      run: |
+        mkdir -p coverage
+        go test -v -race -coverprofile=coverage/coverage.out -covermode=atomic ./...
+
+    - name: Generate coverage report
+      run: go tool cover -html=coverage/coverage.out -o coverage/coverage.html
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage/coverage.out
+        flags: unittests
+        name: codecov-umbrella
+
+    - name: Run benchmarks
+      run: go test -bench=. -benchmem ./... | tee benchmark-results.txt
+
+    - name: Upload test results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: test-results
+        path: |
+          coverage/
+          benchmark-results.txt
+
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: ${{ env.GO_VERSION }}
+
+    - name: Run Gosec Security Scanner
+      uses: securecodewarrior/github-action-gosec@master
+      with:
+        args: '-fmt sarif -out gosec-results.sarif ./...'
+
+    - name: Upload SARIF file
+      uses: github/codeql-action/upload-sarif@v2
+      with:
+        sarif_file: gosec-results.sarif
+
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+
+    - name: Upload Trivy scan results
+      uses: github/codeql-action/upload-sarif@v2
+      with:
+        sarif_file: 'trivy-results.sarif'
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: [test, security]
+    
+    strategy:
+      matrix:
+        goos: [linux, darwin]
+        goarch: [amd64, arm64]
+        include:
+          - goos: linux
+            goarch: arm
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: ${{ env.GO_VERSION }}
+
+    - name: Cache Go modules
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cache/go-build
+          ~/go/pkg/mod
+        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+
+    - name: Build binary
+      env:
+        GOOS: ${{ matrix.goos }}
+        GOARCH: ${{ matrix.goarch }}
+        CGO_ENABLED: 0
+      run: |
+        VERSION=${GITHUB_REF_NAME#v}
+        if [[ "$GITHUB_REF" != refs/tags/* ]]; then
+          VERSION=${GITHUB_SHA::8}
+        fi
+        
+        LDFLAGS="-X github.com/prometheus/common/version.Version=${VERSION}"
+        LDFLAGS="${LDFLAGS} -X github.com/prometheus/common/version.Revision=${GITHUB_SHA}"
+        LDFLAGS="${LDFLAGS} -X github.com/prometheus/common/version.Branch=${GITHUB_REF_NAME}"
+        LDFLAGS="${LDFLAGS} -X github.com/prometheus/common/version.BuildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+        LDFLAGS="${LDFLAGS} -X github.com/prometheus/common/version.GoVersion=$(go version | cut -d' ' -f3)"
+        
+        BINARY_NAME="prometheus-cgroup-v2-exporter-${GOOS}-${GOARCH}"
+        go build -ldflags "${LDFLAGS}" -o ${BINARY_NAME} ./cmd/prometheus-cgroup-v2-exporter
+        
+        # Create archive
+        tar -czf ${BINARY_NAME}.tar.gz ${BINARY_NAME}
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: binaries-${{ matrix.goos }}-${{ matrix.goarch }}
+        path: "*.tar.gz"
+
+  docker:
+    name: Docker Build & Push
+    runs-on: ubuntu-latest
+    needs: [test, security]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v3
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Log in to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=semver,pattern={{version}}
+          type=semver,pattern={{major}}.{{minor}}
+          type=semver,pattern={{major}}
+          type=sha,prefix={{branch}}-
+
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        platforms: linux/amd64,linux/arm64,linux/arm/v7
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Run Trivy vulnerability scanner on image
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+        format: 'sarif'
+        output: 'trivy-image-results.sarif'
+
+    - name: Upload Trivy scan results
+      uses: github/codeql-action/upload-sarif@v2
+      with:
+        sarif_file: 'trivy-image-results.sarif'
+
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    needs: [build, docker]
+    if: startsWith(github.ref, 'refs/tags/')
+    
+    permissions:
+      contents: write
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Download all artifacts
+      uses: actions/download-artifact@v3
+
+    - name: Create release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          binaries-*/*.tar.gz
+        generate_release_notes: true
+        draft: false
+        prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') || contains(github.ref, 'rc') }}
+
+  integration-test:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: [docker]
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
+    
+    services:
+      registry:
+        image: registry:2
+        ports:
+          - 5000:5000
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: ${{ env.GO_VERSION }}
+
+    - name: Enable cgroup v2
+      run: |
+        # Enable cgroup v2 for testing
+        echo 'GRUB_CMDLINE_LINUX="systemd.unified_cgroup_hierarchy=1"' | sudo tee -a /etc/default/grub
+        # Note: In a real environment, this would require a reboot
+
+    - name: Build test image
+      run: |
+        docker build -t localhost:5000/prometheus-cgroup-v2-exporter:test .
+        docker push localhost:5000/prometheus-cgroup-v2-exporter:test
+
+    - name: Run integration tests
+      run: |
+        # Run container with proper cgroup access
+        docker run -d --name test-exporter \
+          --pid=host --privileged \
+          -p 9753:9753 \
+          -v /sys/fs/cgroup:/sys/fs/cgroup:ro \
+          -v /proc:/host/proc:ro \
+          localhost:5000/prometheus-cgroup-v2-exporter:test
+
+    - name: Wait for exporter to start
+      run: |
+        timeout 30 sh -c 'until curl -f http://localhost:9753/health; do sleep 1; done'
+
+    - name: Test metrics endpoint
+      run: |
+        curl -f http://localhost:9753/metrics | grep -q "cgroup_"
+        echo "✓ Metrics endpoint is working"
+
+    - name: Test health endpoint
+      run: |
+        curl -f http://localhost:9753/health | grep -q "healthy"
+        echo "✓ Health endpoint is working"
+
+    - name: Cleanup
+      if: always()
+      run: |
+        docker stop test-exporter || true
+        docker rm test-exporter || true

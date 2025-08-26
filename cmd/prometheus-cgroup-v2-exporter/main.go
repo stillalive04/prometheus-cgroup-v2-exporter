@@ -147,10 +147,10 @@ func run(cmd *cobra.Command, args []string) error {
 		<-sigChan
 		log.Info("Received shutdown signal")
 		cancel()
-		
+
 		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer shutdownCancel()
-		
+
 		if err := server.Shutdown(shutdownCtx); err != nil {
 			log.WithError(err).Error("Server shutdown failed")
 		}

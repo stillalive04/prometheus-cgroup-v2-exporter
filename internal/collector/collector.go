@@ -28,7 +28,7 @@ type BaseCollector struct {
 	logger  *logrus.Logger
 	scanner *cgroup.Scanner
 	mutex   sync.RWMutex
-	
+
 	// Metrics cache
 	cache      map[string]interface{}
 	cacheTime  time.Time
@@ -38,7 +38,7 @@ type BaseCollector struct {
 // NewBaseCollector creates a new base collector
 func NewBaseCollector(name string, enabled bool, cfg *config.Config, logger *logrus.Logger) *BaseCollector {
 	scanner := cgroup.NewScanner(cfg.Cgroup.Path, logger)
-	
+
 	return &BaseCollector{
 		name:      name,
 		enabled:   enabled,
@@ -64,11 +64,11 @@ func (bc *BaseCollector) Enabled() bool {
 func (bc *BaseCollector) GetCachedData(key string) (interface{}, bool) {
 	bc.mutex.RLock()
 	defer bc.mutex.RUnlock()
-	
+
 	if time.Since(bc.cacheTime) > bc.cacheTTL {
 		return nil, false
 	}
-	
+
 	data, exists := bc.cache[key]
 	return data, exists
 }
@@ -77,7 +77,7 @@ func (bc *BaseCollector) GetCachedData(key string) (interface{}, bool) {
 func (bc *BaseCollector) SetCachedData(key string, data interface{}) {
 	bc.mutex.Lock()
 	defer bc.mutex.Unlock()
-	
+
 	bc.cache[key] = data
 	bc.cacheTime = time.Now()
 }
@@ -86,42 +86,42 @@ func (bc *BaseCollector) SetCachedData(key string, data interface{}) {
 func (bc *BaseCollector) ClearCache() {
 	bc.mutex.Lock()
 	defer bc.mutex.Unlock()
-	
+
 	bc.cache = make(map[string]interface{})
 }
 
 // NewCollectors creates and returns all enabled collectors
 func NewCollectors(cfg *config.Config, logger *logrus.Logger) (map[string]Collector, error) {
 	collectors := make(map[string]Collector)
-	
+
 	// CPU Collector
 	if cfg.Collectors.CPU.Enabled {
 		cpuCollector := NewCPUCollector(cfg, logger)
 		collectors["cpu"] = cpuCollector
 	}
-	
+
 	// Memory Collector
 	if cfg.Collectors.Memory.Enabled {
 		memoryCollector := NewMemoryCollector(cfg, logger)
 		collectors["memory"] = memoryCollector
 	}
-	
+
 	// I/O Collector
 	if cfg.Collectors.IO.Enabled {
 		ioCollector := NewIOCollector(cfg, logger)
 		collectors["io"] = ioCollector
 	}
-	
+
 	// PIDs Collector
 	if cfg.Collectors.PIDs.Enabled {
 		pidsCollector := NewPIDsCollector(cfg, logger)
 		collectors["pids"] = pidsCollector
 	}
-	
+
 	if len(collectors) == 0 {
 		return nil, fmt.Errorf("no collectors enabled")
 	}
-	
+
 	logger.WithField("collectors", len(collectors)).Info("Initialized collectors")
 	return collectors, nil
 }

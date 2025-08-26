@@ -14,7 +14,7 @@ import (
 type PIDsCollector struct {
 	*BaseCollector
 	metrics *CollectorMetrics
-	
+
 	// PIDs metrics
 	processesCount   *prometheus.GaugeVec
 	processesRunning *prometheus.GaugeVec
@@ -25,15 +25,15 @@ type PIDsCollector struct {
 // NewPIDsCollector creates a new PIDs collector
 func NewPIDsCollector(cfg *config.Config, logger *logrus.Logger) *PIDsCollector {
 	base := NewBaseCollector("pids", cfg.Collectors.PIDs.Enabled, cfg, logger)
-	
+
 	collector := &PIDsCollector{
 		BaseCollector: base,
 		metrics:       NewCollectorMetrics("pids"),
 	}
-	
+
 	// Initialize metrics
 	collector.initMetrics()
-	
+
 	return collector
 }
 

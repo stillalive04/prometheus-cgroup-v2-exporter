@@ -14,7 +14,7 @@ import (
 type CPUCollector struct {
 	*BaseCollector
 	metrics *CollectorMetrics
-	
+
 	// CPU metrics
 	cpuUsageTotal     *prometheus.CounterVec
 	cpuUserTotal      *prometheus.CounterVec
@@ -27,15 +27,15 @@ type CPUCollector struct {
 // NewCPUCollector creates a new CPU collector
 func NewCPUCollector(cfg *config.Config, logger *logrus.Logger) *CPUCollector {
 	base := NewBaseCollector("cpu", cfg.Collectors.CPU.Enabled, cfg, logger)
-	
+
 	collector := &CPUCollector{
 		BaseCollector: base,
 		metrics:       NewCollectorMetrics("cpu"),
 	}
-	
+
 	// Initialize metrics
 	collector.initMetrics()
-	
+
 	return collector
 }
 

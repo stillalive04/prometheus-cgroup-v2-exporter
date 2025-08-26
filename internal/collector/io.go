@@ -14,7 +14,7 @@ import (
 type IOCollector struct {
 	*BaseCollector
 	metrics *CollectorMetrics
-	
+
 	// I/O metrics
 	ioReadBytesTotal  *prometheus.CounterVec
 	ioWriteBytesTotal *prometheus.CounterVec
@@ -26,15 +26,15 @@ type IOCollector struct {
 // NewIOCollector creates a new I/O collector
 func NewIOCollector(cfg *config.Config, logger *logrus.Logger) *IOCollector {
 	base := NewBaseCollector("io", cfg.Collectors.IO.Enabled, cfg, logger)
-	
+
 	collector := &IOCollector{
 		BaseCollector: base,
 		metrics:       NewCollectorMetrics("io"),
 	}
-	
+
 	// Initialize metrics
 	collector.initMetrics()
-	
+
 	return collector
 }
 

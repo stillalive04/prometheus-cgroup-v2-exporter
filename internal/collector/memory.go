@@ -14,7 +14,7 @@ import (
 type MemoryCollector struct {
 	*BaseCollector
 	metrics *CollectorMetrics
-	
+
 	// Memory metrics
 	memoryUsageBytes     *prometheus.GaugeVec
 	memoryLimitBytes     *prometheus.GaugeVec
@@ -28,15 +28,15 @@ type MemoryCollector struct {
 // NewMemoryCollector creates a new memory collector
 func NewMemoryCollector(cfg *config.Config, logger *logrus.Logger) *MemoryCollector {
 	base := NewBaseCollector("memory", cfg.Collectors.Memory.Enabled, cfg, logger)
-	
+
 	collector := &MemoryCollector{
 		BaseCollector: base,
 		metrics:       NewCollectorMetrics("memory"),
 	}
-	
+
 	// Initialize metrics
 	collector.initMetrics()
-	
+
 	return collector
 }
 
